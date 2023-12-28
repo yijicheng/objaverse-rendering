@@ -8,5 +8,7 @@ rm blender-3.2.2-linux-x64.tar.xz
 sudo update-ca-certificates --fresh
 export SSL_CERT_DIR=/etc/ssl/certs
 
-sudo python3 start_xserver.py start || true
+sudo python3 scripts/start_xserver.py start || true
 pip install -r requirements.txt
+
+ln -s $HOME/.objaverse $HOME/yiji-project/3d-generative-models/objaverse-rendering/

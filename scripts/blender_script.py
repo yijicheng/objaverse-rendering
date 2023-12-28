@@ -24,6 +24,8 @@ import sys
 import time
 import urllib.request
 from typing import Tuple
+from mathutils import Vector, Matrix
+import numpy as np
 
 import bpy
 from mathutils import Vector
@@ -37,13 +39,22 @@ parser.add_argument(
 )
 parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
-    "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
+    "--engine", type=str, default="CYCLES", choices=["CYCLES", "BLENDER_EEVEE"]
 )
 parser.add_argument("--num_images", type=int, default=12)
 parser.add_argument("--camera_dist", type=int, default=1.5)
 
+parser.add_argument('--depth_scale', type=float, default=1.0,
+                    help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
+parser.add_argument('--color_depth', type=str, default='8',
+                    help='Number of bit per channel used for output. Either 8 or 16.')
+parser.add_argument('--format', type=str, default='PNG',
+                    help='Format of files generated. Either PNG or OPEN_EXR')
+
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
+
+print('===================', args.engine, '===================')
 
 context = bpy.context
 scene = context.scene
@@ -65,6 +76,50 @@ scene.cycles.transmission_bounces = 3
 scene.cycles.filter_width = 0.01
 scene.cycles.use_denoising = True
 scene.render.film_transparent = True
+
+bpy.context.preferences.addons["cycles"].preferences.get_devices()
+# Set the device_type
+bpy.context.preferences.addons[
+    "cycles"
+].preferences.compute_device_type = "CUDA" # or "OPENCL"
+
+scene.use_nodes = True
+scene.view_layers["ViewLayer"].use_pass_z = True
+tree = bpy.context.scene.node_tree
+nodes = tree.nodes
+links = tree.links
+# Clear default nodes
+for n in nodes:
+    nodes.remove(n)
+# Create input render layer node
+render_layers = nodes.new('CompositorNodeRLayers')
+# Create depth output nodes
+depth_file_output = nodes.new(type="CompositorNodeOutputFile")
+depth_file_output.label = 'Depth Output'
+depth_file_output.base_path = ''
+depth_file_output.file_slots[0].use_node_format = True
+depth_file_output.format.file_format = args.format
+depth_file_output.format.color_depth = args.color_depth
+depth_file_output.format.color_mode = 'RGBA'
+depth_file_output.format.compression = 0
+depth_file_output.format.exr_codec = 'NONE'
+depth_file_output.format.use_zbuffer = True
+
+if args.format == 'OPEN_EXR':
+    links.new(render_layers.outputs['Depth'], depth_file_output.inputs[0])
+else:
+    depth_file_output.format.color_mode = "BW"
+
+    # Remap as other types can not represent the full range of depth.
+    map = nodes.new(type="CompositorNodeMapValue")
+    # Size is chosen kind of arbitrarily, try out until you're satisfied with resulting depth map.
+    map.offset = [-0.7]
+    map.size = [args.depth_scale]
+    map.use_min = True
+    map.min = [0]
+
+    links.new(render_layers.outputs['Depth'], map.inputs[0])
+    links.new(map.outputs[0], depth_file_output.inputs[0])
 
 
 def sample_point_on_sphere(radius: float) -> Tuple[float, float, float]:
@@ -147,6 +202,39 @@ def scene_meshes():
         if isinstance(obj.data, (bpy.types.Mesh)):
             yield obj
 
+# function from https://github.com/panmari/stanford-shapenet-renderer/blob/master/render_blender.py
+def get_3x4_RT_matrix_from_blender(cam):
+    # bcam stands for blender camera
+    # R_bcam2cv = Matrix(
+    #     ((1, 0,  0),
+    #     (0, 1, 0),
+    #     (0, 0, 1)))
+
+    # Transpose since the rotation is object rotation, 
+    # and we want coordinate rotation
+    # R_world2bcam = cam.rotation_euler.to_matrix().transposed()
+    # T_world2bcam = -1*R_world2bcam @ location
+    #
+    # Use matrix_world instead to account for all constraints
+    location, rotation = cam.matrix_world.decompose()[0:2]
+    R_world2bcam = rotation.to_matrix().transposed()
+
+    # Convert camera location to translation vector used in coordinate changes
+    # T_world2bcam = -1*R_world2bcam @ cam.location
+    # Use location from matrix_world to account for constraints:     
+    T_world2bcam = -1*R_world2bcam @ location
+
+    # # Build the coordinate transform matrix from world to computer vision camera
+    # R_world2cv = R_bcam2cv@R_world2bcam
+    # T_world2cv = R_bcam2cv@T_world2bcam
+
+    # put into 3x4 matrix
+    RT = Matrix((
+        R_world2bcam[0][:] + (T_world2bcam[0],),
+        R_world2bcam[1][:] + (T_world2bcam[1],),
+        R_world2bcam[2][:] + (T_world2bcam[2],)
+        ))
+    return RT
 
 def normalize_scene():
     bbox_min, bbox_max = scene_bbox()
@@ -200,7 +288,17 @@ def save_images(object_file: str) -> None:
         # render the image
         render_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.png")
         scene.render.filepath = render_path
+        # render the depth
+        depth_file_output.file_slots[0].path = render_path[:-4] + "_depth"
+        # render still
         bpy.ops.render.render(write_still=True)
+
+        # save camera RT matrix
+        RT = get_3x4_RT_matrix_from_blender(cam)
+        RT_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.npy")
+        np.save(RT_path, RT)
+
+        os.system(f'mv {render_path[:-4] + "_depth0001.png"} {render_path[:-4] + "_depth.png"}')
 
 
 def download_object(object_url: str) -> str:

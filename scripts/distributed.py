@@ -6,6 +6,8 @@ import subprocess
 import time
 from dataclasses import dataclass
 from typing import Optional
+import os
+import objaverse
 
 import boto3
 import tyro
@@ -17,8 +19,11 @@ class Args:
     workers_per_gpu: int
     """number of workers per gpu"""
 
-    input_models_path: str
-    """Path to a json file containing a list of 3D object files"""
+    # input_models_path: str
+    # """Path to a json file containing a list of 3D object files"""
+    start: int = 0
+    end: int = 2
+    lvis: bool = False
 
     upload_to_s3: bool = False
     """Whether to upload the rendered images to S3"""
@@ -44,10 +49,12 @@ def worker(
         # Perform some operation on the item
         print(item, gpu)
         command = (
-            f"export DISPLAY=:0.{gpu} &&"
+            # f"export DISPLAY=:0.{gpu} &&"
+            f" CUDA_VISIBLE_DEVICES={gpu} "
             f" blender-3.2.2-linux-x64/blender -b -P scripts/blender_script.py --"
             f" --object_path {item}"
         )
+        print(command)
         subprocess.run(command, shell=True)
 
         if args.upload_to_s3:
@@ -87,10 +94,26 @@ if __name__ == "__main__":
             process.start()
 
     # Add items to the queue
-    with open(args.input_models_path, "r") as f:
-        model_paths = json.load(f)
-    for item in model_paths:
-        queue.put(item)
+    # with open(args.input_models_path, "r") as f:
+    #     model_paths = json.load(f)
+
+    if args.lvis:
+        lvis_anno = objaverse.load_lvis_annotations()
+        uids = []
+        for cls, scenes in lvis_anno.items():
+            uids.extend(scenes)
+    else:
+        uids = objaverse.load_uids()
+    uids = uids[args.start:args.end]
+    print(len(uids))
+
+    _ = objaverse.load_objects(
+        uids=uids,
+        download_processes=multiprocessing.cpu_count()
+    )
+    uid2paths = objaverse._load_object_paths()
+    for uid in uids:
+        queue.put(os.path.join(".objaverse/hf-objaverse-v1", uid2paths[uid]))
 
     # update the wandb count
     if args.log_to_wandb:
@@ -112,3 +135,6 @@ if __name__ == "__main__":
     # Add sentinels to the queue to stop the worker processes
     for i in range(args.num_gpus * args.workers_per_gpu):
         queue.put(None)
+
+
+    os.system(f"rm -r .objaverse/hf-objaverse-v1/glbs")
