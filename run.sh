@@ -1,5 +1,4 @@
-# python3 scripts/download_objaverse.py --start_i 0 --end_i 8
 
-python3 scripts/distributed.py \
-  --num_gpus 1 \
-  --workers_per_gpu 2
+# 46207
+python3 scripts/distributed.py --num_gpus 8 --workers_per_gpu 8 --start $1 --end $2 --lvis --output_dir views_lvis_sphere_fix_lightning_transparent_bkg
+

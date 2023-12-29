@@ -22,8 +22,9 @@ class Args:
     # input_models_path: str
     # """Path to a json file containing a list of 3D object files"""
     start: int = 0
-    end: int = 2
+    end: int = 1
     lvis: bool = False
+    output_dir: str = "./views"
 
     upload_to_s3: bool = False
     """Whether to upload the rendered images to S3"""
@@ -40,6 +41,7 @@ def worker(
     count: multiprocessing.Value,
     gpu: int,
     s3: Optional[boto3.client],
+    output_dir: str,
 ) -> None:
     while True:
         item = queue.get()
@@ -52,7 +54,7 @@ def worker(
             # f"export DISPLAY=:0.{gpu} &&"
             f" CUDA_VISIBLE_DEVICES={gpu} "
             f" blender-3.2.2-linux-x64/blender -b -P scripts/blender_script.py --"
-            f" --object_path {item}"
+            f" --object_path {item} --output_dir {output_dir}"
         )
         print(command)
         subprocess.run(command, shell=True)
@@ -81,14 +83,14 @@ if __name__ == "__main__":
     count = multiprocessing.Value("i", 0)
 
     if args.log_to_wandb:
-        wandb.init(project="objaverse-rendering", entity="prior-ai2")
+        wandb.init(project="objaverse-rendering")
 
     # Start worker processes on each of the GPUs
     for gpu_i in range(args.num_gpus):
         for worker_i in range(args.workers_per_gpu):
             worker_i = gpu_i * args.workers_per_gpu + worker_i
             process = multiprocessing.Process(
-                target=worker, args=(queue, count, gpu_i, s3)
+                target=worker, args=(queue, count, gpu_i, s3, args.output_dir)
             )
             process.daemon = True
             process.start()
@@ -104,8 +106,9 @@ if __name__ == "__main__":
             uids.extend(scenes)
     else:
         uids = objaverse.load_uids()
+    print("ALL: ", len(uids))
     uids = uids[args.start:args.end]
-    print(len(uids))
+    print("SHARD: ", args.start, args.end)
 
     _ = objaverse.load_objects(
         uids=uids,
@@ -122,11 +125,11 @@ if __name__ == "__main__":
             wandb.log(
                 {
                     "count": count.value,
-                    "total": len(model_paths),
-                    "progress": count.value / len(model_paths),
+                    "total": len(uids),
+                    "progress": count.value / len(uids),
                 }
             )
-            if count.value == len(model_paths):
+            if count.value == len(uids):
                 break
 
     # Wait for all tasks to be completed
@@ -136,5 +139,5 @@ if __name__ == "__main__":
     for i in range(args.num_gpus * args.workers_per_gpu):
         queue.put(None)
 
-
-    os.system(f"rm -r .objaverse/hf-objaverse-v1/glbs")
+    for uid in uids:
+        os.system(f'rm -r {os.path.join(".objaverse/hf-objaverse-v1", uid2paths[uid])}')

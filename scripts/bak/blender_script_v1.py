@@ -41,10 +41,10 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="CYCLES", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=30)
-parser.add_argument("--camera_dist", type=int, default=4) # 1.5
+parser.add_argument("--num_images", type=int, default=60)
+parser.add_argument("--camera_dist", type=int, default=1.5)
 
-parser.add_argument('--depth_scale', type=float, default=0.25, # 1.0
+parser.add_argument('--depth_scale', type=float, default=1.0,
                     help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
 parser.add_argument('--color_depth', type=str, default='8',
                     help='Number of bit per channel used for output. Either 8 or 16.')
@@ -63,8 +63,8 @@ render = scene.render
 render.engine = args.engine
 render.image_settings.file_format = "PNG"
 render.image_settings.color_mode = "RGBA"
-render.resolution_x = 1024 # 512
-render.resolution_y = 576 # 512
+render.resolution_x = 512
+render.resolution_y = 512
 render.resolution_percentage = 100
 
 scene.cycles.device = "GPU"
@@ -254,9 +254,7 @@ def setup_camera():
     cam = scene.objects["Camera"]
     cam.location = (0, 1.2, 0)
     cam.data.lens = 35
-    # cam.data.sensor_width = 32
-    cam.data.sensor_width = 36
-    cam.data.sensor_height = 24
+    cam.data.sensor_width = 32
     cam_constraint = cam.constraints.new(type="TRACK_TO")
     cam_constraint.track_axis = "TRACK_NEGATIVE_Z"
     cam_constraint.up_axis = "UP_Y"
@@ -301,8 +299,6 @@ def save_images(object_file: str) -> None:
         np.save(RT_path, RT)
 
         os.system(f'mv {render_path[:-9] + "_depth0001.png"} {render_path[:-9] + "_depth.png"}')
-    os.system(f'../../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
-    os.system(f'rm -r {os.path.join(args.output_dir, object_uid)}')
 
 
 def download_object(object_url: str) -> str:
