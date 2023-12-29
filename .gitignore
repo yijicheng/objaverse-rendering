@@ -4,6 +4,7 @@ views
 tmp
 progress
 .objaverse
+HDRIs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

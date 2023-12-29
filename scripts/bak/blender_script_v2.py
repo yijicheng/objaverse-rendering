@@ -24,11 +24,10 @@ import sys
 import time
 import urllib.request
 from typing import Tuple
-from mathutils import Vector, Matrix
 import numpy as np
 
 import bpy
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -41,10 +40,10 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="CYCLES", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=60)
+parser.add_argument("--num_images", type=int, default=30)
 parser.add_argument("--camera_dist", type=int, default=4) # 1.5
 
-parser.add_argument('--depth_scale', type=float, default=0.25,
+parser.add_argument('--depth_scale', type=float, default=0.25, # 1.0
                     help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
 parser.add_argument('--color_depth', type=str, default='8',
                     help='Number of bit per channel used for output. Either 8 or 16.')
@@ -301,6 +300,8 @@ def save_images(object_file: str) -> None:
         np.save(RT_path, RT)
 
         os.system(f'mv {render_path[:-9] + "_depth0001.png"} {render_path[:-9] + "_depth.png"}')
+    os.system(f'../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
+    os.system(f'rm -r {os.path.join(args.output_dir, object_uid)}')
 
 
 def download_object(object_url: str) -> str:
