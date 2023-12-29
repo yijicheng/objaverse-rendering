@@ -301,7 +301,7 @@ def save_images(object_file: str) -> None:
         np.save(RT_path, RT)
 
         os.system(f'mv {render_path[:-9] + "_depth0001.png"} {render_path[:-9] + "_depth.png"}')
-    os.system(f'../../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
+    os.system(f'../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
     os.system(f'rm -r {os.path.join(args.output_dir, object_uid)}')
 
 
