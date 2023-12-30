@@ -47,14 +47,14 @@ parser.add_argument(
     "--engine", type=str, default="CYCLES", choices=["CYCLES", "BLENDER_EEVEE"]
 )
 parser.add_argument("--num_images", type=int, default=30)
-parser.add_argument("--camera_dist", type=int, default=3.0) # 1.5
+# parser.add_argument("--camera_dist", type=int, default=3.0) # 1.5
 
-parser.add_argument('--depth_scale', type=float, default=0.25, # 1.0
-                    help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
-parser.add_argument('--color_depth', type=str, default='8',
-                    help='Number of bit per channel used for output. Either 8 or 16.')
-parser.add_argument('--format', type=str, default='PNG',
-                    help='Format of files generated. Either PNG or OPEN_EXR')
+# parser.add_argument('--depth_scale', type=float, default=0.25, # 1.0
+#                     help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
+# parser.add_argument('--color_depth', type=str, default='8',
+#                     help='Number of bit per channel used for output. Either 8 or 16.')
+# parser.add_argument('--format', type=str, default='PNG',
+#                     help='Format of files generated. Either PNG or OPEN_EXR')
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
@@ -88,43 +88,43 @@ bpy.context.preferences.addons[
     "cycles"
 ].preferences.compute_device_type = "CUDA" # or "OPENCL"
 
-scene.use_nodes = True
-scene.view_layers["ViewLayer"].use_pass_z = True
-tree = bpy.context.scene.node_tree
-nodes = tree.nodes
-links = tree.links
-# Clear default nodes
-for n in nodes:
-    nodes.remove(n)
-# Create input render layer node
-render_layers = nodes.new('CompositorNodeRLayers')
-# Create depth output nodes
-depth_file_output = nodes.new(type="CompositorNodeOutputFile")
-depth_file_output.label = 'Depth Output'
-depth_file_output.base_path = ''
-depth_file_output.file_slots[0].use_node_format = True
-depth_file_output.format.file_format = args.format
-depth_file_output.format.color_depth = args.color_depth
-depth_file_output.format.color_mode = 'RGBA'
-depth_file_output.format.compression = 0
-depth_file_output.format.exr_codec = 'NONE'
-depth_file_output.format.use_zbuffer = True
+# scene.use_nodes = True
+# scene.view_layers["ViewLayer"].use_pass_z = True
+# tree = bpy.context.scene.node_tree
+# nodes = tree.nodes
+# links = tree.links
+# # Clear default nodes
+# for n in nodes:
+#     nodes.remove(n)
+# # Create input render layer node
+# render_layers = nodes.new('CompositorNodeRLayers')
+# # Create depth output nodes
+# depth_file_output = nodes.new(type="CompositorNodeOutputFile")
+# depth_file_output.label = 'Depth Output'
+# depth_file_output.base_path = ''
+# depth_file_output.file_slots[0].use_node_format = True
+# depth_file_output.format.file_format = args.format
+# depth_file_output.format.color_depth = args.color_depth
+# depth_file_output.format.color_mode = 'RGBA'
+# depth_file_output.format.compression = 0
+# depth_file_output.format.exr_codec = 'NONE'
+# depth_file_output.format.use_zbuffer = True
 
-if args.format == 'OPEN_EXR':
-    links.new(render_layers.outputs['Depth'], depth_file_output.inputs[0])
-else:
-    depth_file_output.format.color_mode = "BW"
+# if args.format == 'OPEN_EXR':
+#     links.new(render_layers.outputs['Depth'], depth_file_output.inputs[0])
+# else:
+#     depth_file_output.format.color_mode = "BW"
 
-    # Remap as other types can not represent the full range of depth.
-    map = nodes.new(type="CompositorNodeMapValue")
-    # Size is chosen kind of arbitrarily, try out until you're satisfied with resulting depth map.
-    map.offset = [-0.7]
-    map.size = [args.depth_scale]
-    map.use_min = True
-    map.min = [0]
+#     # Remap as other types can not represent the full range of depth.
+#     map = nodes.new(type="CompositorNodeMapValue")
+#     # Size is chosen kind of arbitrarily, try out until you're satisfied with resulting depth map.
+#     map.offset = [-0.7]
+#     map.size = [args.depth_scale]
+#     map.use_min = True
+#     map.min = [0]
 
-    links.new(render_layers.outputs['Depth'], map.inputs[0])
-    links.new(map.outputs[0], depth_file_output.inputs[0])
+#     links.new(render_layers.outputs['Depth'], map.inputs[0])
+#     links.new(map.outputs[0], depth_file_output.inputs[0])
 
 
 def sample_point_on_sphere(radius: float) -> Tuple[float, float, float]:
@@ -291,8 +291,10 @@ def save_images(object_file: str) -> None:
     obj = load_object(object_file)
     object_uid = os.path.basename(object_file).split(".")[0]
 
+    normalize_scene()
+
     # # add plane
-    # floor = blender_utils.create_plane(size=10.0, name="Floor")
+    # floor = blender_utils.create_plane(size=1.0, name="Floor")
     # floor.is_shadow_catcher = False
     # mat = blender_utils.add_material("Material_Plane", use_nodes=True, make_node_tree_empty=True)
     # nodes = mat.node_tree.nodes
@@ -303,7 +305,6 @@ def save_images(object_file: str) -> None:
     # links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
     # floor.data.materials.append(mat)
 
-    normalize_scene()
     # add_lighting()
     cam, cam_constraint = setup_camera()
     # create an empty object to track
@@ -320,23 +321,23 @@ def save_images(object_file: str) -> None:
     # set the object position
     obj.location.y += np.random.uniform(-0.8, 0.8)
     obj.location.z += np.random.uniform(-0.2, 0.2)
-    # floor.location = obj.location
     # randomize_lighting()
+    camera_dist = np.random.uniform(2, 5)
     for i in range(args.num_images):
         # set the camera position
         theta = (i / args.num_images) * math.pi * 2
         phi = math.radians(75)
         point = (
-            args.camera_dist * math.sin(phi) * math.cos(theta),
-            args.camera_dist * math.sin(phi) * math.sin(theta),
-            args.camera_dist * math.cos(phi),
+            camera_dist * math.sin(phi) * math.cos(theta),
+            camera_dist * math.sin(phi) * math.sin(theta),
+            camera_dist * math.cos(phi),
         )
         cam.location = point
         # render the image
         render_path = os.path.join(args.output_dir, object_uid, f"{i:03d}_rgba.png")
         scene.render.filepath = render_path
-        # render the depth
-        depth_file_output.file_slots[0].path = render_path[:-9] + "_depth"
+        # # render the depth
+        # depth_file_output.file_slots[0].path = render_path[:-9] + "_depth"
         # render still
         bpy.ops.render.render(write_still=True)
 
@@ -345,7 +346,7 @@ def save_images(object_file: str) -> None:
         RT_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.npy")
         np.save(RT_path, RT)
 
-        os.system(f'mv {render_path[:-9] + "_depth0001.png"} {render_path[:-9] + "_depth.png"}')
+        # os.system(f'mv {render_path[:-9] + "_depth0001.png"} {render_path[:-9] + "_depth.png"}')
     os.system(f'../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
     os.system(f'rm -r {os.path.join(args.output_dir, object_uid)}')
 
