@@ -47,9 +47,9 @@ parser.add_argument(
     "--engine", type=str, default="CYCLES", choices=["CYCLES", "BLENDER_EEVEE"]
 )
 parser.add_argument("--num_images", type=int, default=30)
-parser.add_argument("--camera_dist", type=int, default=2.0) # 1.5
+parser.add_argument("--camera_dist", type=int, default=3.0) # 1.5
 
-parser.add_argument('--depth_scale', type=float, default=0.6,
+parser.add_argument('--depth_scale', type=float, default=0.25, # 1.0
                     help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
 parser.add_argument('--color_depth', type=str, default='8',
                     help='Number of bit per channel used for output. Either 8 or 16.')
@@ -65,20 +65,11 @@ context = bpy.context
 scene = context.scene
 render = scene.render
 
-# # setup lighting
-# bpy.ops.object.light_add(type="AREA")
-# light2 = bpy.data.lights["Area"]
-# light2.energy = 3000
-# bpy.data.objects["Area"].location[2] = 0.5
-# bpy.data.objects["Area"].scale[0] = 100
-# bpy.data.objects["Area"].scale[1] = 100
-# bpy.data.objects["Area"].scale[2] = 100
-
 render.engine = args.engine
 render.image_settings.file_format = "PNG"
 render.image_settings.color_mode = "RGBA"
-render.resolution_x = 1024
-render.resolution_y = 576
+render.resolution_x = 1024 # 512
+render.resolution_y = 576 # 512
 render.resolution_percentage = 100
 
 scene.cycles.device = "GPU"
@@ -268,15 +259,11 @@ def normalize_scene():
 
 def setup_camera():
     cam = scene.objects["Camera"]
-    # cam.location =  (0, 1.2, 0)
-    # cam.data.lens = 35
+    cam.location = (0, 1.2, 0)
+    cam.data.lens = 35
     # cam.data.sensor_width = 32
-
-    cam.location = (0.0, -25.0, 2.0)
-    cam.data.sensor_width = 36.0
-    cam.data.sensor_height = 24.0
-    cam.data.lens = 25
-
+    cam.data.sensor_width = 36
+    cam.data.sensor_height = 24
     cam_constraint = cam.constraints.new(type="TRACK_TO")
     cam_constraint.track_axis = "TRACK_NEGATIVE_Z"
     cam_constraint.up_axis = "UP_Y"
@@ -302,22 +289,19 @@ def save_images(object_file: str) -> None:
     reset_scene()
     # load the object
     obj = load_object(object_file)
-    obj.scale = (1.0, 1.0, 1.0)
     object_uid = os.path.basename(object_file).split(".")[0]
 
-    # add plane
-    floor = blender_utils.create_plane(size=10.0, name="Floor")
-    floor.scale = (2, 2, 2)
-    floor.is_shadow_catcher = True
-    mat = blender_utils.add_material("Material_Plane", use_nodes=True, make_node_tree_empty=True)
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    output_node = nodes.new(type='ShaderNodeOutputMaterial')
-    principled_node = nodes.new(type='ShaderNodeBsdfPrincipled')
-    set_principled_node_as_ceramic(principled_node)
-    links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
-    floor.data.materials.append(mat)
-    
+    # # add plane
+    # floor = blender_utils.create_plane(size=10.0, name="Floor")
+    # floor.is_shadow_catcher = False
+    # mat = blender_utils.add_material("Material_Plane", use_nodes=True, make_node_tree_empty=True)
+    # nodes = mat.node_tree.nodes
+    # links = mat.node_tree.links
+    # output_node = nodes.new(type='ShaderNodeOutputMaterial')
+    # principled_node = nodes.new(type='ShaderNodeBsdfPrincipled')
+    # set_principled_node_as_ceramic(principled_node)
+    # links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
+    # floor.data.materials.append(mat)
 
     normalize_scene()
     # add_lighting()
@@ -334,9 +318,9 @@ def save_images(object_file: str) -> None:
     blender_utils.set_environment_texture_background(world, os.path.join("./HDRIs", np.random.choice(hdr_list)))
 
     # set the object position
-    obj.location.y += np.random.uniform(-0.9, 0.9)
-    obj.location.z += np.random.uniform(-0.3, 0.3)
-    floor.location = obj.location
+    obj.location.y += np.random.uniform(-0.8, 0.8)
+    obj.location.z += np.random.uniform(-0.2, 0.2)
+    # floor.location = obj.location
     # randomize_lighting()
     for i in range(args.num_images):
         # set the camera position
@@ -354,7 +338,6 @@ def save_images(object_file: str) -> None:
         # render the depth
         depth_file_output.file_slots[0].path = render_path[:-9] + "_depth"
         # render still
-        
         bpy.ops.render.render(write_still=True)
 
         # save camera RT matrix
@@ -363,8 +346,8 @@ def save_images(object_file: str) -> None:
         np.save(RT_path, RT)
 
         os.system(f'mv {render_path[:-9] + "_depth0001.png"} {render_path[:-9] + "_depth.png"}')
-    # os.system(f'../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
-    # os.system(f'rm -r {os.path.join(args.output_dir, object_uid)}')
+    os.system(f'../azcopy copy "{os.path.join(args.output_dir, object_uid)}" "https://msraimsouthcentralus3.blob.core.windows.net/v-yijicheng/hf-objaverse-v1/{args.output_dir}/?sv=2021-10-04&se=2024-01-28T06%3A04%3A04Z&sr=c&sp=rwl&sig=aUpOHh3UWNqs9w%2BeeuWhYuemv%2Bj11sVdgBxASzqjuEk%3D" --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --check-length=true --put-md5 --follow-symlinks --disable-auto-decoding=false --recursive --log-level=INFO;')
+    os.system(f'rm -r {os.path.join(args.output_dir, object_uid)}')
 
 
 def download_object(object_url: str) -> str:

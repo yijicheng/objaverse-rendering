@@ -26,14 +26,8 @@ import urllib.request
 from typing import Tuple
 import numpy as np
 
-working_dir_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(working_dir_path)
-
-
 import bpy
 from mathutils import Vector, Matrix
-
-import blender_utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -49,7 +43,7 @@ parser.add_argument(
 parser.add_argument("--num_images", type=int, default=30)
 parser.add_argument("--camera_dist", type=int, default=2.0) # 1.5
 
-parser.add_argument('--depth_scale', type=float, default=0.6,
+parser.add_argument('--depth_scale', type=float, default=0.25, # 1.0
                     help='Scaling that is applied to depth. Depends on size of mesh. Try out various values until you get a good result. Ignored if format is OPEN_EXR.')
 parser.add_argument('--color_depth', type=str, default='8',
                     help='Number of bit per channel used for output. Either 8 or 16.')
@@ -65,20 +59,11 @@ context = bpy.context
 scene = context.scene
 render = scene.render
 
-# # setup lighting
-# bpy.ops.object.light_add(type="AREA")
-# light2 = bpy.data.lights["Area"]
-# light2.energy = 3000
-# bpy.data.objects["Area"].location[2] = 0.5
-# bpy.data.objects["Area"].scale[0] = 100
-# bpy.data.objects["Area"].scale[1] = 100
-# bpy.data.objects["Area"].scale[2] = 100
-
 render.engine = args.engine
 render.image_settings.file_format = "PNG"
 render.image_settings.color_mode = "RGBA"
-render.resolution_x = 1024
-render.resolution_y = 576
+render.resolution_x = 1024 # 512
+render.resolution_y = 576 # 512
 render.resolution_percentage = 100
 
 scene.cycles.device = "GPU"
@@ -89,7 +74,7 @@ scene.cycles.transparent_max_bounces = 3
 scene.cycles.transmission_bounces = 3
 scene.cycles.filter_width = 0.01
 scene.cycles.use_denoising = True
-scene.render.film_transparent = False # True
+scene.render.film_transparent = True
 
 bpy.context.preferences.addons["cycles"].preferences.get_devices()
 # Set the device_type
@@ -187,8 +172,6 @@ def load_object(object_path: str) -> None:
     else:
         raise ValueError(f"Unsupported file type: {object_path}")
 
-    obj = bpy.context.object
-    return obj
 
 def scene_bbox(single_obj=None, ignore_matrix=False):
     bbox_min = (math.inf,) * 3
@@ -268,32 +251,15 @@ def normalize_scene():
 
 def setup_camera():
     cam = scene.objects["Camera"]
-    # cam.location =  (0, 1.2, 0)
-    # cam.data.lens = 35
+    cam.location = (0, 1.2, 0)
+    cam.data.lens = 35
     # cam.data.sensor_width = 32
-
-    cam.location = (0.0, -25.0, 2.0)
-    cam.data.sensor_width = 36.0
-    cam.data.sensor_height = 24.0
-    cam.data.lens = 25
-
+    cam.data.sensor_width = 36
+    cam.data.sensor_height = 24
     cam_constraint = cam.constraints.new(type="TRACK_TO")
     cam_constraint.track_axis = "TRACK_NEGATIVE_Z"
     cam_constraint.up_axis = "UP_Y"
     return cam, cam_constraint
-
-
-def set_principled_node_as_ceramic(principled_node: bpy.types.Node) -> None:
-    blender_utils.set_principled_node(
-        principled_node=principled_node,
-        base_color=(0.8, 0.8, 0.8, 1.0),
-        subsurface=0.1,
-        subsurface_color=(0.9, 0.9, 0.9, 1.0),
-        subsurface_radius=(1.0, 1.0, 1.0),
-        metallic=0.2,
-        specular=0.5,
-        roughness=0.0,
-    )
 
 
 def save_images(object_file: str) -> None:
@@ -301,47 +267,19 @@ def save_images(object_file: str) -> None:
     os.makedirs(args.output_dir, exist_ok=True)
     reset_scene()
     # load the object
-    obj = load_object(object_file)
-    obj.scale = (1.0, 1.0, 1.0)
+    load_object(object_file)
     object_uid = os.path.basename(object_file).split(".")[0]
-
-    # add plane
-    floor = blender_utils.create_plane(size=10.0, name="Floor")
-    floor.scale = (2, 2, 2)
-    floor.is_shadow_catcher = True
-    mat = blender_utils.add_material("Material_Plane", use_nodes=True, make_node_tree_empty=True)
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    output_node = nodes.new(type='ShaderNodeOutputMaterial')
-    principled_node = nodes.new(type='ShaderNodeBsdfPrincipled')
-    set_principled_node_as_ceramic(principled_node)
-    links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
-    floor.data.materials.append(mat)
-    
-
     normalize_scene()
-    # add_lighting()
+    add_lighting()
     cam, cam_constraint = setup_camera()
     # create an empty object to track
     empty = bpy.data.objects.new("Empty", None)
     scene.collection.objects.link(empty)
     cam_constraint.target = empty
-
-    world = scene.world
-    blender_utils.build_environment_texture_background(world)
-    ## Lights
-    hdr_list = os.listdir("./HDRIs")
-    blender_utils.set_environment_texture_background(world, os.path.join("./HDRIs", np.random.choice(hdr_list)))
-
-    # set the object position
-    obj.location.y += np.random.uniform(-0.9, 0.9)
-    obj.location.z += np.random.uniform(-0.3, 0.3)
-    floor.location = obj.location
-    # randomize_lighting()
     for i in range(args.num_images):
         # set the camera position
         theta = (i / args.num_images) * math.pi * 2
-        phi = math.radians(75)
+        phi = math.radians(60)
         point = (
             args.camera_dist * math.sin(phi) * math.cos(theta),
             args.camera_dist * math.sin(phi) * math.sin(theta),
@@ -354,7 +292,6 @@ def save_images(object_file: str) -> None:
         # render the depth
         depth_file_output.file_slots[0].path = render_path[:-9] + "_depth"
         # render still
-        
         bpy.ops.render.render(write_still=True)
 
         # save camera RT matrix
