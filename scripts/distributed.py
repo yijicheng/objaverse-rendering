@@ -108,7 +108,7 @@ if __name__ == "__main__":
     elif args.cap3d_hq:
         import csv
         uids = []  
-        with open('../datasets/hf-objaverse-v1/Cap3D_automated_Objaverse_highquality.csv', 'r') as csvfile:  
+        with open('/mnt/blob3/hf-objaverse-v1/Cap3D_automated_Objaverse_highquality.csv', 'r') as csvfile:  
             csvreader = csv.reader(csvfile)  
             for row in csvreader:  
                 uids.append(row[0])  
