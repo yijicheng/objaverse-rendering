@@ -322,7 +322,7 @@ def save_images(object_file: str) -> None:
     obj.location.y += np.random.uniform(-0.8, 0.8)
     obj.location.z += np.random.uniform(-0.2, 0.2)
     # randomize_lighting()
-    camera_dist = np.random.uniform(2, 5)
+    camera_dist = np.random.uniform(3.5, 5)
     for i in range(args.num_images):
         # set the camera position
         theta = (i / args.num_images) * math.pi * 2
