@@ -106,6 +106,7 @@ if __name__ == "__main__":
         for cls, scenes in lvis_anno.items():
             uids.extend(scenes)
     elif args.cap3d_hq:
+        import csv
         uids = []  
         with open('../datasets/hf-objaverse-v1/Cap3D_automated_Objaverse_highquality.csv', 'r') as csvfile:  
             csvreader = csv.reader(csvfile)  
