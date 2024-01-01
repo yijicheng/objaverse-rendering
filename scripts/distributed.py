@@ -24,6 +24,7 @@ class Args:
     start: int = 0
     end: int = 1
     lvis: bool = False
+    cap3d_hq: bool = False
     output_dir: str = "./views"
 
     upload_to_s3: bool = False
@@ -104,6 +105,12 @@ if __name__ == "__main__":
         uids = []
         for cls, scenes in lvis_anno.items():
             uids.extend(scenes)
+    elif args.cap3d_hq:
+        uids = []  
+        with open('../datasets/hf-objaverse-v1/Cap3D_automated_Objaverse_highquality.csv', 'r') as csvfile:  
+            csvreader = csv.reader(csvfile)  
+            for row in csvreader:  
+                uids.append(row[0])  
     else:
         uids = objaverse.load_uids()
     print("ALL: ", len(uids))
